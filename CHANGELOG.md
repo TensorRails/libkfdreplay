@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased (0.1.0-dev)
+## v0.1.0 — 2026-11-15
 
-Initial standalone repository ported from the `kfdreplay2` research prototype.
+Initial public release of `libkfdreplay`, ported from the `kfdreplay2` research prototype.
 
 ### Library (`libkfdreplay.so`)
 

@@ -12,7 +12,7 @@
 
 CC      ?= gcc
 CFLAGS  ?= -O2 -g
-CFLAGS  += -std=gnu11 -fPIC -fvisibility=hidden -D_GNU_SOURCE -Wall -Wextra -Wno-unused-parameter
+CFLAGS  += -std=gnu11 -fPIC -fvisibility=hidden -ffile-prefix-map=$(CURDIR)=. -D_GNU_SOURCE -Wall -Wextra -Wno-unused-parameter
 LDLIBS  := -ldl -lpthread
 PREFIX  ?= /usr/local
 

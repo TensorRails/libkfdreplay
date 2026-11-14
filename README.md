@@ -176,11 +176,20 @@ Breakdown for vLLM `sleep(2)`, Qwen3-0.6B / 8B (stack B):
 - DMTCP: the [TensorRails fork](https://github.com/TensorRails/dmtcp/releases) `v5.0.0-warmctl.2`
   (it adds the `fdkeep` plugin and parallel restart readers used below).
 
-### Build
+### Build (or download a release)
 
 ```bash
 make            # -> build/libkfdreplay.so
 make test       # GPU-free unit tests
+```
+
+Prebuilt `libkfdreplay.so` binaries (x86-64 Linux, `glibc >= 2.34`) and `SHA256SUMS` are attached
+to each [GitHub release](https://github.com/TensorRails/libkfdreplay/releases):
+
+```bash
+curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.0/libkfdreplay.so
+curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.0/SHA256SUMS
+sha256sum --ignore-missing -c SHA256SUMS
 ```
 
 ### Install DMTCP
