@@ -145,8 +145,11 @@ def main():
     t = time.time(); r = lib.dmtcp_checkpoint()
     if r == 1:
         print(f"source: checkpoint written in {time.time() - t:.2f}s, killing engine {out['engine_pid']} and exiting", flush=True)
-        try: os.kill(out["engine_pid"], 9)
-        except OSError as e: print("kill engine:", e, flush=True)
+        try:
+            os.kill(out["engine_pid"], 9)
+            os.waitpid(out["engine_pid"], 0)
+        except OSError as e:
+            print("kill engine:", e, flush=True)
         os._exit(0)
     out["t_abs_resumed"] = time.time()
     rr, out["kfdr_restore_s"] = rpc(w_kfdr_restore); out["kfdr_restore_rc"] = rr

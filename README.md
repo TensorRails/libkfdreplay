@@ -490,8 +490,11 @@ are the examples; run them on a machine with an Instinct GPU.
 
 ## Changes from the research prototype
 
-The code comes from the prototype used for all measurements above (`kfdreplay2.c`). The replay
-logic is unchanged; the following changes **have not been re-run on hardware yet**:
+The code comes from the prototype used for the initial measurements (`kfdreplay2.c`). The replay
+logic is unchanged, and the standalone library and `scripts/cold_cycle.sh` have been re-verified on
+MI350X (ROCm 10.1 TheRock, vLLM 0.29, `TensorRails/dmtcp` `v5.0.0-warmctl.2`) across the HIP toy,
+PyTorch + HIP graph (single cycles, 4-generation chain and negative test), vLLM VMM pool, vLLM
+`sleep(2)` in-process and mp executors (including cold-disk eviction) and `vllm serve`:
 
 1. Split into modules, English comments, hidden visibility for internal symbols (the exported
    symbol set is the API plus the interposed libc functions).

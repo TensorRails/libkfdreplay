@@ -183,7 +183,7 @@ images() { ls "$DIR"/ckpt_*.dmtcp 2>/dev/null; }
 
 src_rc=- t_launch=0
 if [ "$MODE" != restart ]; then
-    rm -f "$DIR"/ckpt_*.dmtcp
+    rm -rf "$DIR"/ckpt_*.dmtcp "$DIR"/ckpt_*_files "$DIR"/dmtcp_restart_script*
     [ "$CHAIN" -gt 0 ] && echo "$CHAIN" >"$DIR/chain_left"
     t0=$(now)
     watchdog launch "$PORT"
@@ -242,7 +242,7 @@ printf "cycle %s launch_rc=%s restart_rc=%s image=%sMiB launch+checkpoint=%.1fs 
     "$(basename "$DIR")" "$src_rc" "$dst_rc" "$size" "$t_launch" "$t_restart" "${res:-NO RESULT}"
 grep -hE "\[kfdr\] (REFUSE|restore|checkpoint done)|CRASH|different GPU" "$DIR"/src.log "$DIR"/dst*.log 2>/dev/null | tail -6
 if [ "$res" = "RESULT PASS" ]; then
-    [ "$KEEP" = 1 ] || rm -f "$DIR"/ckpt_*.dmtcp
+    [ "$KEEP" = 1 ] || rm -rf "$DIR"/ckpt_*.dmtcp "$DIR"/ckpt_*_files "$DIR"/dmtcp_restart_script*
     exit 0
 fi
 exit 1

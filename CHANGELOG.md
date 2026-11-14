@@ -34,7 +34,16 @@ Initial standalone repository ported from the `kfdreplay2` research prototype.
   - replaced `bc` arithmetic with `awk`.
 - Fixed `examples/vllm_offline/run.sh`, `examples/vllm_serve/run.sh` and
   `examples/vllm_serve/serve_cr.py` so reference `baseline.json` runs are not
-  forced into `HF_HUB_OFFLINE=1` before model weights are cached, and added
-  `NEG=1` pass-through to `examples/vllm_offline/run.sh`.
+  forced into `HF_HUB_OFFLINE=1` before model weights are cached, added `NEG=1`
+  pass-through to `examples/vllm_offline/run.sh`, and reaped the `EngineCore`
+  child in `examples/vllm_offline/vllm_mp.py` before source exit.
+- Cleaned up DMTCP `ckpt_*_files/` directories and restart scripts alongside
+  `ckpt_*.dmtcp` when `-K` is not set.
 - Added GPU-free unit tests (`make test`) and a real-DMTCP harness integration
   test (`make test-dmtcp` / `tests/test_cold_cycle.sh`) wired into CI.
+- Re-verified the modular library and `scripts/cold_cycle.sh` on MI350X
+  (ROCm 10.1 TheRock, PyTorch 2.13, vLLM 0.29, `TensorRails/dmtcp`
+  `v5.0.0-warmctl.2`): HIP toy (5 ring boundary positions + negative test),
+  PyTorch + HIP graph (3 cycles, 4-generation chain + negative test), vLLM VMM
+  pool, vLLM `sleep(2)` in-process (3/3 + negative test) and mp executor (3/3
+  including cold page-cache eviction), and `vllm serve` over HTTP.
