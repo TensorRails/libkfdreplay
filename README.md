@@ -234,7 +234,7 @@ examples/pytorch/run.sh                 # PyTorch + HIP graph
 ```
 
 ```bash
-NEG=1 examples/pytorch/run.sh           # negative test: must print RESULT FAIL
+NEG=1 examples/pytorch/run.sh           # negative test: must fail (rc != 0; ROCr aborts or RESULT FAIL)
 ```
 
 Output ends with a line such as
@@ -481,8 +481,12 @@ tests/                   GPU-free tests
 - `test_preload` — the libc hooks are transparent and an empty checkpoint/restore cycle passes;
 - `test_exports` — only the API and the interposed libc symbols are exported.
 
-CI builds with gcc and clang on Ubuntu 22.04 and 24.04. The GPU tests are the examples; run them
-on a machine with an Instinct GPU.
+`make test-dmtcp` runs `tests/test_cold_cycle.sh`: a GPU-free end-to-end test of
+`scripts/cold_cycle.sh` under real DMTCP (single cycle, chain mode, split `-L`/`-R`, negative
+flag and watchdog).
+
+CI builds with gcc and clang on Ubuntu 22.04 and 24.04 and runs both test targets. The GPU tests
+are the examples; run them on a machine with an Instinct GPU.
 
 ## Changes from the research prototype
 

@@ -69,7 +69,8 @@ def serve_cmd():
 
 env = dict(os.environ, VLLM_SERVER_DEV_MODE="1", PYTHONPATH=W + ":" + os.environ.get("PYTHONPATH", ""),
            OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1", UV_USE_IO_URING="0",
-           UCX_MEM_MMAP_HOOK_MODE="none", USE_LIBUV="0", VLLM_NO_USAGE_STATS="1", DO_NOT_TRACK="1", HF_HUB_OFFLINE="1",
+           UCX_MEM_MMAP_HOOK_MODE="none", USE_LIBUV="0", VLLM_NO_USAGE_STATS="1", DO_NOT_TRACK="1",
+           HF_HUB_OFFLINE=os.environ.get("HF_HUB_OFFLINE", "0" if MODE == "baseline" else "1"),
            HSA_ENABLE_SDMA="0", HSA_ENABLE_SCRATCH_ASYNC_RECLAIM="0", HSA_NO_SCRATCH_RECLAIM="1")
 procs = []
 def spawn(cmd, logname, extra_env=None):

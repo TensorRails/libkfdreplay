@@ -32,6 +32,11 @@ jobs:
           shellcheck -S warning scripts/*.sh tests/*.sh examples/*/*.sh
       - name: Python examples compile
         run: python3 -m py_compile examples/*/*.py scripts/*.py
+      - name: Cold-cycle integration test under DMTCP
+        if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc'
+        run: |
+          scripts/install_dmtcp.sh "$RUNNER_TEMP/dmtcp"
+          DMTCP_ROOT="$RUNNER_TEMP/dmtcp" make test-dmtcp
       - name: Upload library
         if: matrix.os == 'ubuntu-22.04' && matrix.cc == 'gcc'
         uses: actions/upload-artifact@v4

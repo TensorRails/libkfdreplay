@@ -66,35 +66,109 @@ kfdr_check_env || exit 2
 DIR=${DIR:-$PWD/kfdr-cycle-$(date +%Y%m%d-%H%M%S)}
 mkdir -p "$DIR"
 DIR=$(cd "$DIR" && pwd)
-# Default kill pattern: the script/binary the command runs (e.g. torch_graph.py).
-for a in "$@"; do
-    case $a in *.py | */*) PATTERNS+=("$(basename "$a")") ;; esac
-done
-[ ${#PATTERNS[@]} -eq 0 ] && [ $# -gt 0 ] && PATTERNS+=("$(basename "$1")")
+TMPDIR_DMTCP=$DIR/.dmtcp
+mkdir -p "$TMPDIR_DMTCP"
+CYCLE_ID="kfdr-$$-$RANDOM"
+self_script=$(basename "$0")
+
+# Default kill pattern: the script/binary the command runs (e.g. torch_graph.py, toy),
+# skipping directory arguments such as $DIR passed to the example scripts.
+if [ $# -gt 0 ]; then
+    case $(basename "$1") in
+    python* | bash | sh)
+        for a in "${@:2}"; do
+            case $a in *.py) PATTERNS+=("$(basename "$a")"); break ;; esac
+        done
+        ;;
+    *)
+        case $1 in */*) PATTERNS+=("$1") ;; *) PATTERNS+=("$(basename "$1")") ;; esac
+        ;;
+    esac
+fi
 
 PORT=$((7000 + RANDOM % 2000))
 launch_args=(--no-gzip --new-coordinator -p "$PORT" --ckptdir "$DIR")
 [ -n "${DMTCP_FDKEEP:-}" ] && launch_args+=(--with-plugin "$DMTCP_FDKEEP")
 
 now() { date +%s.%N; }
+elapsed() { awk "BEGIN { printf \"%.3f\", $1 - $2 }"; }
+coord_ports() { echo "$PORT" $(seq "$((PORT + 1))" 2 "$((PORT + 1 + 2 * CHAIN))"); }
+port_open() { ( : >/dev/tcp/127.0.0.1/"$1" ) 2>/dev/null; }
+
+# PIDs of the caller's ancestor chain (this script and any outer wrapper/loop).
+# Their cmdlines contain PATTERNS and $DIR too and must never be matched or killed.
+protected_pids() {
+    local p=$$ out=" "
+    while [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null; do
+        out="$out$p "
+        p=$(awk '/^PPid:/ { print $2 }' "/proc/$p/status" 2>/dev/null || true)
+    done
+    echo "$out"
+}
+KEEP_PIDS=$(protected_pids)
+
+# Application and launcher/restarter PIDs of this cycle. Also queries the DMTCP
+# coordinator when given a port ($1): in unprivileged containers PR_SET_MM fails
+# on restart, so restored processes may not carry their original /proc/pid/cmdline.
+app_pids() {
+    local cport=${1:-} raw pid cmd p
+    raw=$(
+        if [ -n "$cport" ] && port_open "$cport"; then
+            timeout 3 "$DMTCP_BIN/dmtcp_command" -p "$cport" --list </dev/null 2>/dev/null |
+                sed -n 's/.*\[[0-9]*:\([0-9]*\)\]@.*/\1/p' || true
+        fi
+        for p in "${PATTERNS[@]}"; do pgrep -f -- "$p" 2>/dev/null || true; done
+        pgrep -f -- "dmtcp_(launch|restart).*$DIR" 2>/dev/null || true
+    )
+    for pid in $(printf '%s\n' "$raw" | sort -u); do
+        [ -n "$pid" ] && [ -d "/proc/$pid" ] || continue
+        case $KEEP_PIDS in *" $pid "*) continue ;; esac
+        cmd=$({ tr '\0' ' ' <"/proc/$pid/cmdline"; } 2>/dev/null || true)
+        case $cmd in *"$self_script"*) continue ;; esac
+        echo "$pid"
+    done
+}
+
+# Every process of our UID spawned with KFDR_CYCLE_ID=$CYCLE_ID (including
+# auto-started dmtcp_coordinator daemons, whose argv does not carry -p PORT).
+cycle_env_pids() {
+    local pid e
+    for pid in $(pgrep -u "$(id -u)" 2>/dev/null || true); do
+        case $KEEP_PIDS in *" $pid "*) continue ;; esac
+        e="/proc/$pid/environ"
+        [ -r "$e" ] || continue
+        if { tr '\0' '\n' <"$e"; } 2>/dev/null | grep -qxF "KFDR_CYCLE_ID=$CYCLE_ID"; then
+            echo "$pid"
+        fi
+    done
+}
 
 kill_tree() {
-    for p in "${PATTERNS[@]}"; do pkill -9 -f -- "$p" 2>/dev/null; done
-    pkill -9 -f -- "dmtcp_(launch|restart).*$DIR" 2>/dev/null
-    pkill -9 -f -- "dmtcp_coordinator.*($PORT|$((PORT + 1)))" 2>/dev/null
+    local pid cport
+    for cport in $(coord_ports); do
+        if port_open "$cport"; then
+            timeout 3 "$DMTCP_BIN/dmtcp_command" -p "$cport" --kill </dev/null >/dev/null 2>&1 || true
+            timeout 3 "$DMTCP_BIN/dmtcp_command" -p "$cport" --quit </dev/null >/dev/null 2>&1 || true
+        fi
+        for pid in $(app_pids "$cport"); do kill -9 "$pid" 2>/dev/null || true; done
+    done
+    for pid in $(app_pids) $(cycle_env_pids); do
+        kill -9 "$pid" 2>/dev/null || true
+    done
     return 0
 }
 
-# watchdog <phase>: kill everything after $TMO s unless cancelled (kill $WDP).
+# watchdog <phase> <coord_port>: kill everything after $TMO s unless cancelled.
 watchdog() {
     (
-        sleep "$TMO"
+        sleep "$TMO" >/dev/null 2>&1 &
+        sp=$!
+        trap 'kill "$sp" 2>/dev/null; exit 0' TERM INT
+        wait "$sp" || exit 0
         echo "WATCHDOG $1 fired after ${TMO}s" | tee -a "$DIR/watchdog.txt" >&2
         if [ "$GDB" = 1 ] && command -v gdb >/dev/null; then
-            for p in "${PATTERNS[@]}"; do
-                for pid in $(pgrep -f -- "$p"); do
-                    timeout 60 gdb -p "$pid" -batch -ex "thread apply all bt 16" >"$DIR/gdb_$1_$pid.txt" 2>&1
-                done
+            for pid in $(app_pids "${2:-}"); do
+                timeout 60 gdb -p "$pid" -batch -ex "thread apply all bt 16" </dev/null >"$DIR/gdb_$1_$pid.txt" 2>&1 || true
             done
         fi
         kill_tree
@@ -112,27 +186,28 @@ if [ "$MODE" != restart ]; then
     rm -f "$DIR"/ckpt_*.dmtcp
     [ "$CHAIN" -gt 0 ] && echo "$CHAIN" >"$DIR/chain_left"
     t0=$(now)
-    watchdog launch
-    env "${EXTRA_ENV[@]}" LD_PRELOAD="$KFDR_LIB" "$DMTCP_BIN/dmtcp_launch" "${launch_args[@]}" "$@" >"$DIR/src.log" 2>&1
+    watchdog launch "$PORT"
+    env "${EXTRA_ENV[@]}" KFDR_CYCLE_ID="$CYCLE_ID" DMTCP_TMPDIR="$TMPDIR_DMTCP" LD_PRELOAD="$KFDR_LIB" \
+        "$DMTCP_BIN/dmtcp_launch" "${launch_args[@]}" "$@" </dev/null >"$DIR/src.log" 2>&1
     src_rc=$?
     unwatch
-    t_launch=$(echo "$(now) - $t0" | bc)
+    t_launch=$(elapsed "$(now)" "$t0")
     if [ -z "$(images)" ]; then
         echo "cycle $DIR: NO CHECKPOINT (launch rc=$src_rc)"
         grep -E "\[kfdr\]|RESULT|Error|error" "$DIR/src.log" | tail -15
         kill_tree
+        rm -rf "$TMPDIR_DMTCP"
         exit 3
     fi
     alive=0
-    for p in "${PATTERNS[@]}"; do
-        alive=$((alive + $(pgrep -f -- "$p" | grep -cv "^$$\$")))
-    done
+    for _ in $(app_pids); do alive=$((alive + 1)); done
     if [ "$alive" -gt 0 ]; then
         echo "warning: $alive process(es) matching ${PATTERNS[*]} still alive after the source exited" >&2
     fi
     [ "$MODE" = launch ] && {
         echo "cycle $DIR: checkpoint written (launch rc=$src_rc, ${t_launch}s, $(du -cm --apparent-size $(images) | tail -1 | cut -f1) MiB)"
         kill_tree
+        rm -rf "$TMPDIR_DMTCP"
         exit 0
     }
 fi
@@ -150,17 +225,18 @@ for i in $(seq 0 "$CHAIN"); do
     log="$DIR/dst.log"
     [ "$CHAIN" -gt 0 ] && log="$DIR/dst_$i.log"
     t2=$(now)
-    watchdog "restart$i"
+    watchdog "restart$i" "$PORT2"
     # shellcheck disable=SC2086
-    env $KFDR_RESTART_ENV "$DMTCP_BIN/dmtcp_restart" --no-strict-checking --new-coordinator -p "$PORT2" \
-        --ckptdir "$DIR" $(images) >"$log" 2>&1
+    env $KFDR_RESTART_ENV KFDR_CYCLE_ID="$CYCLE_ID" DMTCP_TMPDIR="$TMPDIR_DMTCP" "$DMTCP_BIN/dmtcp_restart" \
+        --no-strict-checking --new-coordinator -p "$PORT2" --ckptdir "$DIR" $(images) </dev/null >"$log" 2>&1
     dst_rc=$?
     unwatch
-    t_restart=$(echo "$(now) - $t2" | bc)
+    t_restart=$(elapsed "$(now)" "$t2")
     res=$(result_of "$log")
     [ -n "$res" ] && break
 done
 kill_tree
+rm -rf "$TMPDIR_DMTCP"
 
 printf "cycle %s launch_rc=%s restart_rc=%s image=%sMiB launch+checkpoint=%.1fs restart+run=%.1fs %s\n" \
     "$(basename "$DIR")" "$src_rc" "$dst_rc" "$size" "$t_launch" "$t_restart" "${res:-NO RESULT}"

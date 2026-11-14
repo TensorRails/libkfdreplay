@@ -2,7 +2,7 @@
 # One cold cycle of the PyTorch + HIP graph example.
 #   examples/pytorch/run.sh [seed]
 #   CHAIN=3 examples/pytorch/run.sh     restore -> checks -> new checkpoint, 3 times
-#   NEG=1 examples/pytorch/run.sh       negative test: restore without contents (KFDR_NOCOPY=1) must FAIL
+#   NEG=1 examples/pytorch/run.sh       negative test: restore without contents (KFDR_NOCOPY=1) must fail (rc != 0)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 dir=${DIR:-$PWD/kfdr-pytorch}

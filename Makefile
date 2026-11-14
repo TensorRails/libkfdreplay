@@ -25,7 +25,7 @@ LIB     := $(BUILD)/libkfdreplay.so
 TEST_OBJS := $(BUILD)/state.o $(BUILD)/log.o $(BUILD)/xlate.o $(BUILD)/topology.o
 TESTS     := $(BUILD)/test_xlate $(BUILD)/test_topology $(BUILD)/test_abi
 
-.PHONY: all test install clean
+.PHONY: all test test-dmtcp install clean
 all: $(LIB)
 
 $(BUILD):
@@ -49,6 +49,9 @@ test: $(LIB) $(TESTS) $(BUILD)/test_preload
 	@LD_PRELOAD=$(abspath $(LIB)) $(BUILD)/test_preload 2>$(BUILD)/test_preload.stderr || { cat $(BUILD)/test_preload.stderr; exit 1; }
 	@LD_PRELOAD=$(abspath $(LIB)) sh -c 'ls / >/dev/null && cat /proc/self/status >/dev/null' && echo "preloaded shell: ok"
 	@sh tests/test_exports.sh $(LIB)
+
+test-dmtcp: $(LIB)
+	@bash tests/test_cold_cycle.sh
 
 install: $(LIB)
 	install -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/include
