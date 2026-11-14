@@ -1,0 +1,23 @@
+# build output
+/build/
+*.o
+*.so
+*.a
+*.d
+
+# test binaries and scratch
+/tests/bin/
+/tests/tmp/
+
+# example outputs and DMTCP images
+ckpt_*.dmtcp
+dmtcp_restart_script*.sh
+*.log
+__pycache__/
+*.pyc
+
+# editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
