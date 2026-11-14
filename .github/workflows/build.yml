@@ -1,0 +1,42 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # No GPU here: build, GPU-free unit tests, ABI check against kernel UAPI
+    # headers, syntax checks of the scripts and examples.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        cc: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain and kernel headers
+        run: sudo apt-get update -q && sudo apt-get install -y -q make linux-libc-dev clang shellcheck
+      - name: Build
+        run: make CC=${{ matrix.cc }}
+      - name: Unit tests
+        run: make CC=${{ matrix.cc }} test
+      - name: Shell scripts
+        run: |
+          bash -n scripts/*.sh tests/*.sh examples/*/*.sh
+          shellcheck -S warning scripts/*.sh tests/*.sh examples/*/*.sh
+      - name: Python examples compile
+        run: python3 -m py_compile examples/*/*.py scripts/*.py
+      - name: Upload library
+        if: matrix.os == 'ubuntu-22.04' && matrix.cc == 'gcc'
+        uses: actions/upload-artifact@v4
+        with:
+          name: libkfdreplay-linux-amd64
+          path: |
+            build/libkfdreplay.so
+            include/kfdreplay.h

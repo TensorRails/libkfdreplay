@@ -149,8 +149,12 @@ int main(void) {
 #ifdef AMDKFD_IOC_RUNTIME_ENABLE
     CHECK(kfdr_classify_kfd(_IOC_NR(AMDKFD_IOC_RUNTIME_ENABLE)) == 'P');
 #endif
+#ifdef AMDKFD_IOC_CRIU_OP
     CHECK(kfdr_classify_kfd(_IOC_NR(AMDKFD_IOC_CRIU_OP)) == 0);
+#endif
+#ifdef AMDKFD_IOC_SVM
     CHECK(kfdr_classify_kfd(_IOC_NR(AMDKFD_IOC_SVM)) == 0);
+#endif
     CHECK(kfdr_classify_kfd(_IOC_NR(AMDKFD_IOC_IMPORT_DMABUF)) == 0);
     CHECK(kfdr_classify_kfd(_IOC_NR(AMDKFD_IOC_UPDATE_QUEUE)) == 0);
     CHECK(kfdr_classify_kfd(_IOC_NR(AMDKFD_IOC_SET_CU_MASK)) == 0);
