@@ -187,8 +187,8 @@ Prebuilt `libkfdreplay.so` binaries (x86-64 Linux, `glibc >= 2.34`) and `SHA256S
 to each [GitHub release](https://github.com/TensorRails/libkfdreplay/releases):
 
 ```bash
-curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.0/libkfdreplay.so
-curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.0/SHA256SUMS
+curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.1/libkfdreplay.so
+curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.1/SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS
 ```
 
@@ -283,7 +283,7 @@ Declared in [`include/kfdreplay.h`](include/kfdreplay.h); all functions log to s
 | `int kfdr_restore(void)` | In the restored process, before any other thread uses the GPU: reopen devices, replay everything, release threads. Returns 0 or -1 (the process cannot use the GPU after a failure). |
 | `const char *kfdr_last_error(void)` | Reason of the last refusal/failure, `""` after success. |
 | `int kfdr_state(void)` | `KFDR_STATE_RUNNING`, `_CHECKPOINTED_WARM`, `_CHECKPOINTED_COLD`, `_RESTORED`. |
-| `const char *kfdr_version(void)` | `"0.1.0"`. |
+| `const char *kfdr_version(void)` | `"0.1.1"`. |
 | `void kfdr_drm_report(void)` | Print the DRM ioctls the runtime issued since restore, and DRM errors. |
 | `uint64_t kfdr_max_wptr(uint32_t *slots)` | Largest AQL write pointer (testing aid for ring positions). |
 

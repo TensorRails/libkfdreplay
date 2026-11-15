@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.1 — 2026-11-15
+
+### Library (`libkfdreplay.so`)
+
+- Track live DRM GEM handles in a bitmap (up to 2^20 handle ids) instead of a
+  fixed 1024-entry list. Under vLLM's sleep-mode allocator a large model holds
+  thousands of GEM handles at once; the old list overflowed
+  (`drm_track_overflow`) and every checkpoint was refused, even though all
+  handles were released before it. Handle ids beyond the bitmap still count as
+  overflow and refuse the checkpoint (fail-closed). Verified on MI350X with
+  Qwen3.8-Flash-Next FP8 (180B-A6B) on vLLM 0.33.0+rocm100 through warmctl:
+  bake and restore succeed with `overflow 0`.
+
 ## v0.1.0 — 2026-11-15
 
 Initial public release of `libkfdreplay`, ported from the `kfdreplay2` research prototype.
