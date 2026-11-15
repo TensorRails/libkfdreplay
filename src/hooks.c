@@ -196,19 +196,25 @@ struct bo *kfdr_bo_by_handle(uint64_t h) {
 
 /* ---- ioctl ------------------------------------------------------------------ */
 
+/* PRIME_FD2H of a buffer the fd already imported returns the same handle:
+ * counted once. A handle beyond the bitmap cannot be tracked: refuse. */
 static void gem_add(uint32_t h) {
-    for (int i = 0; i < ngem_live; i++)
-        if (gem_live[i] == h) return;
-    if (ngem_live < MAX_GEM) gem_live[ngem_live++] = h;
-    else drm_track_overflow++;
+    if (h >= MAX_GEM_HANDLE) {
+        drm_track_overflow++;
+        return;
+    }
+    uint64_t bit = 1ull << (h % 64);
+    if (gem_live[h / 64] & bit) return;
+    gem_live[h / 64] |= bit;
+    ngem_live++;
 }
 
 static void gem_del(uint32_t h) {
-    for (int i = 0; i < ngem_live; i++)
-        if (gem_live[i] == h) {
-            gem_live[i] = gem_live[--ngem_live];
-            return;
-        }
+    if (h >= MAX_GEM_HANDLE) return;
+    uint64_t bit = 1ull << (h % 64);
+    if (!(gem_live[h / 64] & bit)) return;
+    gem_live[h / 64] &= ~bit;
+    ngem_live--;
 }
 
 /* Block the calling thread until kfdr_restore() releases the freeze. */
