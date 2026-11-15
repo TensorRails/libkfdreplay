@@ -52,7 +52,9 @@ int nsobj;
  * GEM_VA at a reserved VA). A checkpoint is allowed only when all of it has
  * been released: no live GEM handles, GEM_VA mappings or dmabuf fds.
  */
-uint32_t gem_live[MAX_GEM];
+/* A bit per live handle: a large model under vLLM's sleep-mode allocator holds
+ * thousands at once, and releases them all before the checkpoint. */
+uint64_t gem_live[MAX_GEM_HANDLE / 64];
 int ngem_live;
 long gem_va_live;
 unsigned long drm_track_overflow;

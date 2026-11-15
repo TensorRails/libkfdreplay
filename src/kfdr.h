@@ -143,7 +143,7 @@ int kfdr_drm_nr_allowed(unsigned nr);
 #define MAX_QUEUE 256
 #define MAX_EVENT 8192
 #define MAX_SYNCOBJ 64
-#define MAX_GEM 1024
+#define MAX_GEM_HANDLE (1u << 20) /* GEM handles are small idr ids; one bit each */
 #define MAX_WAITER 32
 #define MAX_FD 4096     /* fd numbers tracked by fdkind[] */
 #define MAX_DEV_FD 1024 /* fd numbers that may be device fds (reopened on restore) */
@@ -204,7 +204,7 @@ extern unsigned long partial_overlaps;
 extern unsigned long drm_ok[256], drm_err[256], drm_ok_since_restore[256];
 extern struct syncobj_rec sobj[MAX_SYNCOBJ];
 extern int nsobj;
-extern uint32_t gem_live[MAX_GEM];
+extern uint64_t gem_live[MAX_GEM_HANDLE / 64];
 extern int ngem_live;
 extern long gem_va_live;
 extern unsigned long drm_track_overflow;
