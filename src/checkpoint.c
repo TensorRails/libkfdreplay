@@ -205,6 +205,15 @@ static int audit_maps(void) {
 
 /* ---- pre-checks -------------------------------------------------------------- */
 
+static int check_record_capacity(void) {
+    pthread_mutex_lock(&mu);
+    const char *table = record_overflow;
+    pthread_mutex_unlock(&mu);
+    if (!table) return 0;
+    kfdr_fail("REFUSE: %s recorder capacity exceeded; replay history is incomplete", table);
+    return -1;
+}
+
 static int render_fd_used(void) {
     for (int j = nmp - 1; j >= 0; j--)
         if (mps[j].live && kfdr_kind_of(mps[j].fd) == FD_RENDER) return mps[j].fd;
@@ -464,6 +473,7 @@ static void teardown_cold(void) {
 KFDR_API int kfdr_checkpoint(int cold) {
     kfdr_resolve_real();
     kfdr_clear_error();
+    if (check_record_capacity()) return -1;
     double t0 = kfdr_now();
     for (int fd = 0; fd < MAX_DEV_FD; fd++) fdkind[fd] = FD_UNCLASSIFIED;
     for (int fd = 0; fd < MAX_DEV_FD; fd++) kfdr_kind_of(fd);
@@ -491,7 +501,7 @@ KFDR_API int kfdr_checkpoint(int cold) {
     double copy_s = kfdr_now() - tc;
     if (nlost) {
         kfdr_fail("REFUSE: %d BO(s) unreadable", nlost);
-        return -1;
+        goto discard_contents;
     }
     if (kfdr_debug_on()) {
         for (int i = 0; i < nbo; i++)
@@ -506,15 +516,16 @@ KFDR_API int kfdr_checkpoint(int cold) {
     }
     if (audit_maps()) {
         kfdr_fail("REFUSE: device mappings not covered by the model");
-        return -1;
+        goto discard_contents;
     }
 
     /* 1. Freeze. */
-    if (freeze_threads()) return -1;
-    /* 2. Queues must be empty. */
-    if (check_queues_idle()) {
+    if (freeze_threads()) goto discard_contents;
+    /* ROCr can allocate more objects during the contents dump above. Check
+       capacity again once its threads are parked, before releasing any state. */
+    if (check_record_capacity() || check_queues_idle()) {
         unfreeze();
-        return -1;
+        goto discard_contents;
     }
     int nqd = 0, ned = 0, nfreed = 0;
     if (!cold) {
@@ -525,4 +536,12 @@ KFDR_API int kfdr_checkpoint(int cold) {
     kfdr_log("checkpoint done: %.1f MiB copied in %.3f s (%s); %d queues, %d events, %d BO freed; total %.3f s\n",
              bytes / 1048576, copy_s, copy_mode, nqd, ned, nfreed, kfdr_now() - t0);
     return 0;
+
+discard_contents:
+    /* Teardown never started. The running process needs no host copies. */
+    for (int i = 0; i < nbo; i++) {
+        free(bos[i].data);
+        bos[i].data = NULL;
+    }
+    return -1;
 }

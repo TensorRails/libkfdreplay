@@ -283,7 +283,7 @@ Declared in [`include/kfdreplay.h`](include/kfdreplay.h); all functions log to s
 | `int kfdr_restore(void)` | In the restored process, before any other thread uses the GPU: reopen devices, replay everything, release threads. Returns 0 or -1 (the process cannot use the GPU after a failure). |
 | `const char *kfdr_last_error(void)` | Reason of the last refusal/failure, `""` after success. |
 | `int kfdr_state(void)` | `KFDR_STATE_RUNNING`, `_CHECKPOINTED_WARM`, `_CHECKPOINTED_COLD`, `_RESTORED`. |
-| `const char *kfdr_version(void)` | `"0.1.1"`. |
+| `const char *kfdr_version(void)` | The library's version string, including any prerelease suffix. |
 | `void kfdr_drm_report(void)` | Print the DRM ioctls the runtime issued since restore, and DRM errors. |
 | `uint64_t kfdr_max_wptr(uint32_t *slots)` | Largest AQL write pointer (testing aid for ring positions). |
 
@@ -385,6 +385,7 @@ only), copy `DIR` plus the files listed above, then `scripts/cold_cycle.sh -R -d
 
 | Condition | Why |
 |---|---|
+| A buffer, mapping, queue, event or event-waiter record exceeded its table capacity | The process can keep running, but its replay history is incomplete. Later checkpoint attempts in this process also refuse. |
 | A successful KFD ioctl the library does not model (e.g. `UPDATE_QUEUE`, `SET_CU_MASK`, `IMPORT_DMABUF`, `SVM`, `DBG_TRAP`, `CRIU_OP`, unknown numbers) | its effect would be missing after restore |
 | A successful state-changing DRM ioctl (contexts, command submission, syncobj signal/reset/import/export, …) | render-node state is not replayed |
 | Live GEM handles, `GEM_VA` mappings or dmabuf fds at checkpoint time | HIP VMM / dmabuf state; release it first (vLLM: `sleep(level=2)`) |
@@ -488,6 +489,7 @@ tests/                   GPU-free tests
   kernel UAPI headers (`linux-libc-dev`); `kfd_ioctl_create_queue_args` may be 88 bytes in older
   headers, the library uses the newer 96-byte layout of the amdgpu DKMS driver;
 - `test_preload` — the libc hooks are transparent and an empty checkpoint/restore cycle passes;
+- `test_capacity` — mocked KFD calls exercise the last available recorder slot, churn, and checkpoint refusal when the buffer copy itself exhausts a table;
 - `test_exports` — only the API and the interposed libc symbols are exported.
 
 `make test-dmtcp` runs `tests/test_cold_cycle.sh`: a GPU-free end-to-end test of

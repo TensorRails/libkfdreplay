@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.2-rc.1 — 2026-11-17
+
+- Refuse warm and cold checkpoints once a recorder table drops an event,
+  queue, buffer object, device mapping, per-buffer GPU mapping or event waiter.
+  The error names the first exhausted table. Previously a later successful
+  checkpoint could omit a live event after 8,192 event creations.
+- Recheck recording capacity after the GPU memory copy and before teardown.
+  A refusal releases the temporary copies and lets the application continue.
+- Add GPU-free boundary tests through the ioctl hooks and checkpoint API.
+  This candidate is intended for hardware qualification.
+
 ## v0.1.1 — 2026-11-15
 
 ### Library (`libkfdreplay.so`)

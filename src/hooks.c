@@ -127,6 +127,14 @@ KFDR_API int access(const char *p, int mode) {
 
 /* ---- mmap/munmap: model of device mappings --------------------------------- */
 
+/* Called under mu. Filling the last slot is valid; dropping the next record
+   makes both warm and cold checkpoints unsafe for the rest of this process. */
+static int has_record_space(size_t used, size_t capacity, const char *table) {
+    if (used < capacity) return 1;
+    if (!record_overflow) record_overflow = table;
+    return 0;
+}
+
 /* Mark every live record overlapping [a, a+len) dead. */
 static void kill_overlapping(void *a, size_t len) {
     for (int i = 0; i < nmp; i++)
@@ -163,7 +171,8 @@ KFDR_API void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t o
         int dev = !(flags & MAP_ANONYMOUS) && kfdr_kind_of(fd);
         pthread_mutex_lock(&mu);
         kill_overlapping(r, len);
-        if (dev && nmp < MAX_MAP) mps[nmp++] = (struct mp){r, len, prot, flags, fd, (uint64_t)off, 1, NULL, 0};
+        if (dev && has_record_space(nmp, MAX_MAP, "device mapping"))
+            mps[nmp++] = (struct mp){r, len, prot, flags, fd, (uint64_t)off, 1, NULL, 0};
         pthread_mutex_unlock(&mu);
     }
     return r;
@@ -306,7 +315,7 @@ static void record_kfd(unsigned nr, unsigned long req, void *arg, const unsigned
     }
     switch (nr) {
     case NR_ALLOC_MEMORY_OF_GPU:
-        if (nbo < MAX_BO) {
+        if (has_record_space(nbo, MAX_BO, "buffer object")) {
             bos[nbo] = (struct bo){0};
             bos[nbo].a = *(struct alloc_args *)arg;
             if (in_alloc->flags & F_USERPTR) bos[nbo].user_addr = in_alloc->mmap_offset;
@@ -331,7 +340,8 @@ static void record_kfd(unsigned nr, unsigned long req, void *arg, const unsigned
             for (uint32_t i = 0; i < m->n_devices; i++) {
                 int seen = 0;
                 for (uint32_t j = 0; j < b->ngpu; j++) seen |= b->gpus[j] == ids[i];
-                if (!seen && b->ngpu < 16) b->gpus[b->ngpu++] = ids[i];
+                if (!seen && has_record_space(b->ngpu, sizeof b->gpus / sizeof b->gpus[0], "buffer GPU mapping"))
+                    b->gpus[b->ngpu++] = ids[i];
             }
         }
         break;
@@ -342,7 +352,7 @@ static void record_kfd(unsigned nr, unsigned long req, void *arg, const unsigned
         break;
     }
     case NR_CREATE_QUEUE:
-        if (nq < MAX_QUEUE) {
+        if (has_record_space(nq, MAX_QUEUE, "queue")) {
             qs[nq].a = *(struct cq_args *)arg;
             qs[nq].live = 1;
             nq++;
@@ -360,7 +370,7 @@ static void record_kfd(unsigned nr, unsigned long req, void *arg, const unsigned
             signal_handle = po;
             page = 1;
         }
-        if (nev < MAX_EVENT) {
+        if (has_record_space(nev, MAX_EVENT, "event")) {
             evs[nev].a = *e;
             evs[nev].a.page_offset = po;
             evs[nev].live = 1;
@@ -385,7 +395,7 @@ static int kfd_ioctl(int fd, unsigned long req, void *arg) {
         int seen = 0;
         pthread_mutex_lock(&mu);
         for (int i = 0; i < nwaiter; i++) seen |= waiter_tid[i] == me;
-        if (!seen && nwaiter < MAX_WAITER) waiter_tid[nwaiter++] = me;
+        if (!seen && has_record_space(nwaiter, MAX_WAITER, "event waiter")) waiter_tid[nwaiter++] = me;
         pthread_mutex_unlock(&mu);
     }
     int xl = gpu_new && restored_cold;
