@@ -27,6 +27,8 @@ jobs:
       image: debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
       options: --init
     timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Install build dependencies
         run: apt-get update -qq && apt-get install -y -qq --no-install-recommends build-essential linux-libc-dev git ca-certificates
@@ -35,15 +37,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Check version header and release notes
+        id: version
         env:
-          TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
         run: |
-          hdr_ver=$(awk -F'"' '/^#define KFDR_VERSION_STRING / { print $2 }' include/kfdreplay.h)
-          if [[ "${GITHUB_REF:-}" == refs/tags/v* ]] && [ "v$hdr_ver" != "$TAG" ]; then
-            echo "include/kfdreplay.h version ($hdr_ver) does not match tag ($TAG)" >&2
+          version=$(awk -F'"' '/^#define KFDR_VERSION_STRING / { print $2 }' include/kfdreplay.h)
+          test -n "$version"
+          if [ -n "$RELEASE_TAG" ] && [ "v$version" != "$RELEASE_TAG" ]; then
+            echo "include/kfdreplay.h version ($version) does not match tag ($RELEASE_TAG)" >&2
             exit 1
           fi
-          bash scripts/release-notes.sh "$TAG" > /tmp/release-notes.md
+          bash scripts/release-notes.sh "v$version" > /tmp/release-notes.md
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - name: Build and run unit tests
         run: |
           make clean
@@ -59,7 +64,7 @@ jobs:
           fi
       - name: Package release assets
         env:
-          TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'snapshot' }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           stage="/tmp/stage/libkfdreplay-$TAG"
           mkdir -p "$stage/include" dist
@@ -71,7 +76,11 @@ jobs:
             "$TAG" "$hdr_ver" "$GITHUB_SHA" > "$stage/BUILDINFO"
           ldd --version | head -1 >> "$stage/BUILDINFO"
           cp -p "$stage/libkfdreplay.so" dist/libkfdreplay.so
-          tar -czf "dist/libkfdreplay-$TAG-linux-amd64.tar.gz" -C /tmp/stage "libkfdreplay-$TAG"
+          # DMTCP checks the mtime of mapped files on restart. Independent
+          # packages of the same release commit must install identical files.
+          epoch=$(git -c safe.directory="$GITHUB_WORKSPACE" show -s --format=%ct HEAD)
+          tar --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner \
+            -czf "dist/libkfdreplay-$TAG-linux-amd64.tar.gz" -C /tmp/stage "libkfdreplay-$TAG"
           git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar.gz \
             --prefix="libkfdreplay-$TAG/" HEAD > "dist/libkfdreplay-$TAG-source.tar.gz"
           (cd dist && sha256sum libkfdreplay.so "libkfdreplay-$TAG-linux-amd64.tar.gz" "libkfdreplay-$TAG-source.tar.gz" > SHA256SUMS)
@@ -100,7 +109,7 @@ jobs:
           path: assets
       - name: Verify checksums, exports and preload on ${{ matrix.os }}
         env:
-          TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'snapshot' }}
+          TAG: ${{ needs.package.outputs.tag }}
         run: |
           chmod 0755 assets/libkfdreplay.so
           (cd assets && sha256sum -c SHA256SUMS)

@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.2 — 2026-11-17
+
+- Warm and cold checkpoints now refuse to proceed after a recorder table
+  drops state. The diagnostic names the first table that filled. This
+  covers events, queues, buffer objects, mappings and event waiters.
+  Previously a checkpoint could succeed with a live event missing after
+  8,192 event creations. Long-running processes that reach this limit
+  must restart before taking another checkpoint.
+- Capacity is checked again after copying GPU memory and before teardown.
+  A refusal frees the temporary copies and leaves the application running.
+  GPU-free regression tests cover exhaustion through the ioctl hooks and
+  the public checkpoint API.
+
 ## v0.1.2-rc.1 — 2026-11-17
 
 - Refuse warm and cold checkpoints once a recorder table drops an event,

@@ -36,7 +36,7 @@ published as GitHub pre-releases.
 ## Verify a release
 
 ```bash
-V=v0.1.1
+V=v0.1.2
 sha256sum --ignore-missing -c SHA256SUMS
 ```
 
