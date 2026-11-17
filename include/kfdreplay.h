@@ -36,7 +36,7 @@ extern "C" {
 #define KFDR_VERSION_MAJOR 0
 #define KFDR_VERSION_MINOR 1
 #define KFDR_VERSION_PATCH 2
-#define KFDR_VERSION_STRING "0.1.2-rc.1"
+#define KFDR_VERSION_STRING "0.1.2"
 
 /* Values returned by kfdr_state(). */
 enum kfdr_state {

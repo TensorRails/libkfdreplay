@@ -36,14 +36,15 @@ jobs:
           persist-credentials: false
       - name: Check version header and release notes
         env:
-          TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
         run: |
-          hdr_ver=$(awk -F'"' '/^#define KFDR_VERSION_STRING / { print $2 }' include/kfdreplay.h)
-          if [[ "${GITHUB_REF:-}" == refs/tags/v* ]] && [ "v$hdr_ver" != "$TAG" ]; then
-            echo "include/kfdreplay.h version ($hdr_ver) does not match tag ($TAG)" >&2
+          version=$(awk -F'"' '/^#define KFDR_VERSION_STRING / { print $2 }' include/kfdreplay.h)
+          test -n "$version"
+          if [ -n "$RELEASE_TAG" ] && [ "v$version" != "$RELEASE_TAG" ]; then
+            echo "include/kfdreplay.h version ($version) does not match tag ($RELEASE_TAG)" >&2
             exit 1
           fi
-          bash scripts/release-notes.sh "$TAG" > /tmp/release-notes.md
+          bash scripts/release-notes.sh "v$version" > /tmp/release-notes.md
       - name: Build and run unit tests
         run: |
           make clean

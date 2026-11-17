@@ -187,8 +187,8 @@ Prebuilt `libkfdreplay.so` binaries (x86-64 Linux, `glibc >= 2.34`) and `SHA256S
 to each [GitHub release](https://github.com/TensorRails/libkfdreplay/releases):
 
 ```bash
-curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.1/libkfdreplay.so
-curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.1/SHA256SUMS
+curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.2/libkfdreplay.so
+curl -fsSLO https://github.com/TensorRails/libkfdreplay/releases/download/v0.1.2/SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS
 ```
 
