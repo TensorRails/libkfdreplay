@@ -187,6 +187,9 @@ extern struct q qs[MAX_QUEUE];
 extern int nq;
 extern struct ev evs[MAX_EVENT];
 extern int nev;
+/* First recorder table that dropped an entry. Protected by mu and never reset:
+   a later destroy cannot recover the missing history. */
+extern const char *record_overflow;
 extern struct pl plv[KFD_NR_MAX];
 extern int pl_order[KFD_NR_MAX], npl;
 

@@ -23,7 +23,7 @@ LIB     := $(BUILD)/libkfdreplay.so
 
 # Objects the unit tests link directly (no libc interposition).
 TEST_OBJS := $(BUILD)/state.o $(BUILD)/log.o $(BUILD)/xlate.o $(BUILD)/topology.o
-TESTS     := $(BUILD)/test_xlate $(BUILD)/test_topology $(BUILD)/test_abi
+TESTS     := $(BUILD)/test_xlate $(BUILD)/test_topology $(BUILD)/test_abi $(BUILD)/test_capacity
 
 .PHONY: all test test-dmtcp install clean
 all: $(LIB)
@@ -39,6 +39,10 @@ $(LIB): $(OBJS)
 
 $(BUILD)/test_%: tests/test_%.c tests/test.h $(TEST_OBJS)
 	$(CC) $(CFLAGS) -Isrc -o $@ $< $(TEST_OBJS) $(LDLIBS)
+
+# Exercise the production hooks with the real ioctl target replaced by the test.
+$(BUILD)/test_capacity: tests/test_capacity.c tests/test.h $(OBJS)
+	$(CC) $(CFLAGS) -Isrc -o $@ $< $(OBJS) $(LDLIBS)
 
 # Runs with the library preloaded; does not link the library objects.
 $(BUILD)/test_preload: tests/test_preload.c tests/test.h include/kfdreplay.h | $(BUILD)

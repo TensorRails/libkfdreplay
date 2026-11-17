@@ -16,6 +16,7 @@ struct q qs[MAX_QUEUE];
 int nq;
 struct ev evs[MAX_EVENT];
 int nev;
+const char *record_overflow;
 struct pl plv[KFD_NR_MAX];
 int pl_order[KFD_NR_MAX], npl;
 
